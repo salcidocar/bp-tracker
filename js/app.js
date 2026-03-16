@@ -9,8 +9,16 @@ const Auth = {
     register(name, email, phone, dob, username, password) {
         if (!name || !email || !phone || !dob || !username || !password) return { success: false, message: 'Todos los campos son obligatorios' };
 
-        const usersJson = localStorage.getItem('bp_users') || '[]';
-        const users = JSON.parse(usersJson);
+        let users = [];
+        const usersJson = localStorage.getItem('bp_users');
+        if (usersJson) {
+            try {
+                users = JSON.parse(usersJson);
+            } catch (e) {
+                console.error("Error parsing users:", e);
+                users = [];
+            }
+        }
 
         if (users.some(u => u.username === username)) {
             return { success: false, message: 'El nombre de usuario ya existe' };
@@ -36,8 +44,15 @@ const Auth = {
             return { success: true, user: sessionUser };
         }
         
-        const usersJson = localStorage.getItem('bp_users') || '[]';
-        const users = JSON.parse(usersJson);
+        let users = [];
+        const usersJson = localStorage.getItem('bp_users');
+        if (usersJson) {
+            try {
+                users = JSON.parse(usersJson);
+            } catch (e) {
+                users = [];
+            }
+        }
         const user = users.find(u => u.username === username && u.password === password);
         
         if (user) {
@@ -56,8 +71,13 @@ const Auth = {
     },
 
     deleteUser(userId) {
-        const usersJson = localStorage.getItem('bp_users') || '[]';
-        let users = JSON.parse(usersJson);
+        let users = [];
+        const usersJson = localStorage.getItem('bp_users');
+        if (usersJson) {
+            try {
+                users = JSON.parse(usersJson);
+            } catch (e) {}
+        }
         
         const initialLength = users.length;
         users = users.filter(u => u.id !== userId);
@@ -71,8 +91,13 @@ const Auth = {
     },
 
     approveUser(userId) {
-        const usersJson = localStorage.getItem('bp_users') || '[]';
-        let users = JSON.parse(usersJson);
+        let users = [];
+        const usersJson = localStorage.getItem('bp_users');
+        if (usersJson) {
+            try {
+                users = JSON.parse(usersJson);
+            } catch (e) {}
+        }
         const userIndex = users.findIndex(u => u.id === userId);
         
         if (userIndex !== -1) {
@@ -88,20 +113,36 @@ const Measurements = {
     getAll() {
         const user = Auth.getCurrentUser();
         if (!user) return [];
-        const recordsJson = localStorage.getItem(`bp_records_${user.id}`) || '[]';
-        const records = JSON.parse(recordsJson);
+        let records = [];
+        const recordsJson = localStorage.getItem(`bp_records_${user.id}`);
+        if (recordsJson) {
+            try {
+                records = JSON.parse(recordsJson);
+            } catch (e) {}
+        }
         return records.sort((a, b) => new Date(b.date) - new Date(a.date));
     },
 
     getAllForUser(userId) {
-        const recordsJson = localStorage.getItem(`bp_records_${userId}`) || '[]';
-        const records = JSON.parse(recordsJson);
+        let records = [];
+        const recordsJson = localStorage.getItem(`bp_records_${userId}`);
+        if (recordsJson) {
+            try {
+                records = JSON.parse(recordsJson);
+            } catch (e) {}
+        }
         return records.sort((a, b) => new Date(b.date) - new Date(a.date));
     },
 
     getUsersList() {
-        const usersJson = localStorage.getItem('bp_users') || '[]';
-        return JSON.parse(usersJson);
+        let users = [];
+        const usersJson = localStorage.getItem('bp_users');
+        if (usersJson) {
+            try {
+                users = JSON.parse(usersJson);
+            } catch(e) {}
+        }
+        return users;
     },
 
     add(sys, dia, pulse, date) {
