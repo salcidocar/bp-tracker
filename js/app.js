@@ -6,164 +6,144 @@ const Auth = {
         return userJson ? JSON.parse(userJson) : null;
     },
 
-    register(name, email, phone, dob, username, password) {
+    async register(name, email, phone, dob, username, password) {
         if (!name || !email || !phone || !dob || !username || !password) return { success: false, message: 'Todos los campos son obligatorios' };
-
-        let users = [];
-        const usersJson = localStorage.getItem('bp_users');
-        if (usersJson) {
-            try {
-                users = JSON.parse(usersJson);
-            } catch (e) {
-                console.error("Error parsing users:", e);
-                users = [];
-            }
-        }
-
-        if (users.some(u => u.username === username)) {
-            return { success: false, message: 'El nombre de usuario ya existe' };
-        }
-
-        const newUser = { 
-            id: Date.now().toString(), 
-            name, email, phone, dob, 
-            username, password, 
-            status: 'pending', 
-            createdAt: new Date().toISOString() 
-        };
-        users.push(newUser);
-        localStorage.setItem('bp_users', JSON.stringify(users));
         
-        return { success: true, message: 'Cuenta creada. Pendiente de aprobación del administrador.' };
+        try {
+            const usersRef = await db.ref('users').once('value');
+            const users = usersRef.val() || {};
+            
+            if (Object.values(users).some(u => u.username === username)) {
+                return { success: false, message: 'El nombre de usuario ya existe' };
+            }
+
+            const newId = Date.now().toString();
+            const newUser = { 
+                id: newId, name, email, phone, dob, 
+                username, password, status: 'pending', 
+                createdAt: new Date().toISOString() 
+            };
+            
+            await db.ref(`users/${newId}`).set(newUser);
+            return { success: true, message: 'Cuenta creada. Pendiente de aprobación del administrador.' };
+        } catch(e) {
+            console.error(e);
+            return { success: false, message: 'Error de conexión con la nube.' };
+        }
     },
 
-    login(username, password) {
+    async login(username, password) {
         if (username === 'admin' && password === 'admin') {
             const sessionUser = { id: 'master', name: 'Master Admin', username: 'admin', role: 'admin' };
             localStorage.setItem('bp_current_user', JSON.stringify(sessionUser));
             return { success: true, user: sessionUser };
         }
         
-        let users = [];
-        const usersJson = localStorage.getItem('bp_users');
-        if (usersJson) {
-            try {
-                users = JSON.parse(usersJson);
-            } catch (e) {
-                users = [];
+        try {
+            const usersRef = await db.ref('users').once('value');
+            const users = usersRef.val() || {};
+            const user = Object.values(users).find(u => u.username === username && u.password === password);
+            
+            if (user) {
+                if (user.status === 'pending') {
+                    return { success: false, message: 'Tu cuenta está pendiente de aprobación por el administrador.' };
+                }
+                const sessionUser = { id: user.id, name: user.name, username: user.username };
+                localStorage.setItem('bp_current_user', JSON.stringify(sessionUser));
+                return { success: true, user: sessionUser };
             }
+            return { success: false, message: 'Nombre de usuario o contraseña inválidos' };
+        } catch(e) {
+            return { success: false, message: 'Error de conexión.' };
         }
-        const user = users.find(u => u.username === username && u.password === password);
-        
-        if (user) {
-            if (user.status === 'pending') {
-                return { success: false, message: 'Tu cuenta está pendiente de aprobación por el administrador.' };
-            }
-            const sessionUser = { id: user.id, name: user.name, username: user.username };
-            localStorage.setItem('bp_current_user', JSON.stringify(sessionUser));
-            return { success: true, user: sessionUser };
-        }
-        return { success: false, message: 'Nombre de usuario o contraseña inválidos' };
     },
 
     logout() {
         localStorage.removeItem('bp_current_user');
     },
 
-    deleteUser(userId) {
-        let users = [];
-        const usersJson = localStorage.getItem('bp_users');
-        if (usersJson) {
-            try {
-                users = JSON.parse(usersJson);
-            } catch (e) {}
-        }
-        
-        const initialLength = users.length;
-        users = users.filter(u => u.id !== userId);
-        
-        if (users.length < initialLength) {
-            localStorage.setItem('bp_users', JSON.stringify(users));
-            localStorage.removeItem(`bp_records_${userId}`);
+    async deleteUser(userId) {
+        try {
+            await db.ref(`users/${userId}`).remove();
+            await db.ref(`records/${userId}`).remove();
             return true;
+        } catch(e) {
+            return false;
         }
-        return false;
     },
 
-    approveUser(userId) {
-        let users = [];
-        const usersJson = localStorage.getItem('bp_users');
-        if (usersJson) {
-            try {
-                users = JSON.parse(usersJson);
-            } catch (e) {}
+    async approveUser(userId) {
+        try {
+             await db.ref(`users/${userId}`).update({ status: 'approved' });
+             return true;
+        } catch(e) {
+             return false;
         }
-        const userIndex = users.findIndex(u => u.id === userId);
-        
-        if (userIndex !== -1) {
-            users[userIndex].status = 'approved';
-            localStorage.setItem('bp_users', JSON.stringify(users));
-            return true;
-        }
-        return false;
     }
 };
 
 const Measurements = {
-    getAll() {
+    async getAll() {
         const user = Auth.getCurrentUser();
         if (!user) return [];
-        let records = [];
-        const recordsJson = localStorage.getItem(`bp_records_${user.id}`);
-        if (recordsJson) {
-            try {
-                records = JSON.parse(recordsJson);
-            } catch (e) {}
-        }
-        return records.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return await this.getAllForUser(user.id);
     },
 
-    getAllForUser(userId) {
-        let records = [];
-        const recordsJson = localStorage.getItem(`bp_records_${userId}`);
-        if (recordsJson) {
-            try {
-                records = JSON.parse(recordsJson);
-            } catch (e) {}
+    async getAllForUser(userId) {
+        try {
+            const snap = await db.ref(`records/${userId}`).once('value');
+            const recordsObj = snap.val() || {};
+            const records = Object.values(recordsObj);
+            return records.sort((a, b) => new Date(b.date) - new Date(a.date));
+        } catch(e) {
+            return [];
         }
-        return records.sort((a, b) => new Date(b.date) - new Date(a.date));
     },
 
-    getUsersList() {
-        let users = [];
-        const usersJson = localStorage.getItem('bp_users');
-        if (usersJson) {
-            try {
-                users = JSON.parse(usersJson);
-            } catch(e) {}
+    async getUsersList() {
+        try {
+            const snap = await db.ref('users').once('value');
+            const users = snap.val() || {};
+            return Object.values(users);
+        } catch(e) {
+            return [];
         }
-        return users;
     },
 
-    add(sys, dia, pulse, date) {
+    async add(sys, dia, pulse, date) {
         const user = Auth.getCurrentUser();
         if (!user) return false;
 
+        const newId = Date.now().toString();
         const record = {
-            id: Date.now().toString(),
+            id: newId,
             sys: parseInt(sys), dia: parseInt(dia), pulse: parseInt(pulse),
             date: date || new Date().toISOString()
         };
 
-        const records = this.getAll();
-        records.push(record);
-        localStorage.setItem(`bp_records_${user.id}`, JSON.stringify(records));
-        return true;
+        try {
+            await db.ref(`records/${user.id}/${newId}`).set(record);
+            return true;
+        } catch(e) {
+            return false;
+        }
     },
 
-    getStats() {
-        const records = this.getAll();
-        if (records.length === 0) return null;
+    async delete(recordId) {
+        const user = Auth.getCurrentUser();
+        if (!user) return false;
+        
+        try {
+            await db.ref(`records/${user.id}/${recordId}`).remove();
+            return true;
+        } catch(e) {
+            return false;
+        }
+    },
+    
+    // UI Helper logic 
+    calculateStats(records) {
+        if (!records || records.length === 0) return null;
         const sum = records.reduce((acc, curr) => {
             acc.sys += curr.sys; acc.dia += curr.dia; acc.pulse += curr.pulse;
             return acc;
@@ -225,18 +205,18 @@ const TrendChart = {
         });
     },
 
-    update() {
+    update(records) {
         if (!bpChartInstance) return;
-        const records = [...Measurements.getAll()].reverse();
+        const sortedRecords = [...(records||[])].reverse();
         
-        const labels = records.map(r => {
+        const labels = sortedRecords.map(r => {
             const d = new Date(r.date);
             return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
         });
         
         bpChartInstance.data.labels = labels;
-        bpChartInstance.data.datasets[0].data = records.map(r => r.sys);
-        bpChartInstance.data.datasets[1].data = records.map(r => r.dia);
+        bpChartInstance.data.datasets[0].data = sortedRecords.map(r => r.sys);
+        bpChartInstance.data.datasets[1].data = sortedRecords.map(r => r.dia);
         bpChartInstance.update();
     },
 
@@ -309,23 +289,24 @@ const UI = {
         setTimeout(() => target.classList.add('active'), 10);
     },
 
-    updateDashboard() {
+    async updateDashboard() {
         const user = Auth.getCurrentUser();
         if (!user) return;
         
         document.getElementById('welcome-msg').textContent = `Bienvenido, ${user.name}`;
-        const stats = Measurements.getStats();
+        const records = await Measurements.getAllForUser(user.id);
+        const stats = Measurements.calculateStats(records);
+
         document.getElementById('avg-systolic').textContent = stats ? stats.avgSys : '--';
         document.getElementById('avg-diastolic').textContent = stats ? stats.avgDia : '--';
         document.getElementById('avg-pulse').textContent = stats ? stats.avgPulse : '--';
 
-        this.renderHistory();
-        TrendChart.update();
+        this.renderHistory(records);
+        TrendChart.update(records);
     },
 
-    renderHistory() {
+    renderHistory(records) {
         const list = document.getElementById('history-list');
-        const records = Measurements.getAll();
         const tableBody = document.getElementById('history-table-body');
         
         if (records.length === 0) {
@@ -373,7 +354,7 @@ const UI = {
         }).join('');
     },
 
-    updateMasterDashboard() {
+    async updateMasterDashboard() {
         const user = Auth.getCurrentUser();
         if (!user || user.role !== 'admin') return;
 
@@ -381,7 +362,7 @@ const UI = {
         const pendingSidebar = document.getElementById('admin-pending-list');
         const pendingSection = document.getElementById('pending-users-section');
         
-        const allUsers = Measurements.getUsersList();
+        const allUsers = await Measurements.getUsersList();
         const approvedUsers = allUsers.filter(u => u.status !== 'pending');
         const pendingUsers = allUsers.filter(u => u.status === 'pending');
         
@@ -410,19 +391,19 @@ const UI = {
             `).join('');
             
             document.querySelectorAll('.approve-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const userId = e.currentTarget.dataset.id;
-                    if (Auth.approveUser(userId)) UI.updateMasterDashboard();
+                    if (await Auth.approveUser(userId)) await UI.updateMasterDashboard();
                 });
             });
             
             document.querySelectorAll('.reject-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const userId = e.currentTarget.dataset.id;
                     if (confirm('¿Rechazar y eliminar esta solicitud de registro?')) {
-                        if (Auth.deleteUser(userId)) UI.updateMasterDashboard();
+                        if (await Auth.deleteUser(userId)) await UI.updateMasterDashboard();
                     }
                 });
             });
@@ -461,7 +442,7 @@ const UI = {
         });
     },
 
-    loadAdminUserData(userId, userName) {
+    async loadAdminUserData(userId, userName) {
         document.getElementById('selected-user-title').textContent = `Registros de ${userName}`;
         document.getElementById('admin-actions').classList.remove('hidden');
         document.getElementById('admin-user-data').classList.remove('hidden');
@@ -470,18 +451,14 @@ const UI = {
         document.getElementById('admin-actions').dataset.selectedId = userId;
         document.getElementById('admin-actions').dataset.selectedName = userName;
 
-        const records = Measurements.getAllForUser(userId);
+        const records = await Measurements.getAllForUser(userId);
         
         // Calculate Stats
-        if (records.length > 0) {
-            const sum = records.reduce((acc, curr) => {
-                acc.sys += curr.sys; acc.dia += curr.dia; acc.pulse += curr.pulse;
-                return acc;
-            }, { sys: 0, dia: 0, pulse: 0 });
-
-            document.getElementById('admin-avg-sys').textContent = Math.round(sum.sys / records.length);
-            document.getElementById('admin-avg-dia').textContent = Math.round(sum.dia / records.length);
-            document.getElementById('admin-avg-pulse').textContent = Math.round(sum.pulse / records.length);
+        const stats = Measurements.calculateStats(records);
+        if (stats) {
+            document.getElementById('admin-avg-sys').textContent = stats.avgSys;
+            document.getElementById('admin-avg-dia').textContent = stats.avgDia;
+            document.getElementById('admin-avg-pulse').textContent = stats.avgPulse;
         } else {
             document.getElementById('admin-avg-sys').textContent = '--';
             document.getElementById('admin-avg-dia').textContent = '--';
@@ -549,7 +526,7 @@ const UI = {
     hideModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     TrendChart.init();
     TrendChart.initAdminChart();
 
@@ -557,10 +534,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentUser) {
         if (currentUser.role === 'admin') {
             UI.showView('master-view');
-            UI.updateMasterDashboard();
+            await UI.updateMasterDashboard();
         } else {
             UI.showView('dashboard-view');
-            UI.updateDashboard();
+            await UI.updateDashboard();
         }
     } else {
         UI.showView('auth-view');
@@ -576,19 +553,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('signup-form').classList.remove('hidden'); document.getElementById('login-form').classList.add('hidden');
     });
 
-    document.getElementById('login-form').addEventListener('submit', (e) => {
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const user = document.getElementById('login-username').value;
         const pass = document.getElementById('login-password').value;
-        const res = Auth.login(user, pass);
+        const res = await Auth.login(user, pass);
         if (res.success) {
             document.getElementById('login-error').textContent = '';
             if (res.user.role === 'admin') {
                 UI.showView('master-view');
-                UI.updateMasterDashboard();
+                await UI.updateMasterDashboard();
             } else {
                 UI.showView('dashboard-view');
-                UI.updateDashboard();
+                await UI.updateDashboard();
             }
             e.target.reset();
         } else {
@@ -596,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('signup-form').addEventListener('submit', (e) => {
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = document.getElementById('signup-name').value;
         const email = document.getElementById('signup-email').value;
@@ -605,7 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const user = document.getElementById('signup-username').value;
         const pass = document.getElementById('signup-password').value;
         
-        const res = Auth.register(name, email, phone, dob, user, pass);
+        const res = await Auth.register(name, email, phone, dob, user, pass);
         if (res.success) {
             document.getElementById('signup-error').textContent = '';
             alert(res.message);
@@ -629,7 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.print();
     });
 
-    document.getElementById('admin-delete-btn').addEventListener('click', () => {
+    document.getElementById('admin-delete-btn').addEventListener('click', async () => {
         const actionsContainer = document.getElementById('admin-actions');
         const userId = actionsContainer.dataset.selectedId;
         const userName = actionsContainer.dataset.selectedName;
@@ -637,14 +614,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!userId) return;
 
         if (confirm(`¿Estás seguro de que deseas eliminar al usuario "${userName}" y TODO su historial de mediciones? Esto no se puede deshacer.`)) {
-            if (Auth.deleteUser(userId)) {
+            if (await Auth.deleteUser(userId)) {
                 // Clear the current view
                 document.getElementById('selected-user-title').textContent = 'Selecciona un Usuario';
                 document.getElementById('admin-actions').classList.add('hidden');
                 document.getElementById('admin-user-data').classList.add('hidden');
                 
                 // Refresh the sidebar
-                UI.updateMasterDashboard();
+                await UI.updateMasterDashboard();
                 alert(`El usuario ${userName} ha sido eliminado.`);
             } else {
                 alert('Ocurrió un error al eliminar el usuario.');
@@ -659,15 +636,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.id === 'record-modal') UI.hideModal('record-modal');
     });
 
-    document.getElementById('record-form').addEventListener('submit', (e) => {
+    document.getElementById('record-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const sys = document.getElementById('sys-input').value;
         const dia = document.getElementById('dia-input').value;
         const pulse = document.getElementById('pulse-input').value;
         const date = document.getElementById('date-input').value;
         
-        if (Measurements.add(sys, dia, pulse, date)) {
-            UI.hideModal('record-modal'); UI.updateDashboard(); e.target.reset();
+        if (await Measurements.add(sys, dia, pulse, date)) {
+            UI.hideModal('record-modal'); await UI.updateDashboard(); e.target.reset();
         } else {
             alert('Error al guardar el registro.');
         }
