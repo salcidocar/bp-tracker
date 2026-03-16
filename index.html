@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro PA Pro</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Phosphor Icons (Alternative to Lucide for easy CDN usage) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Views will be injected here or toggled -->
+        
+        <!-- Auth View -->
+        <div id="auth-view" class="view active">
+            <div class="auth-card glass-panel">
+                <div class="auth-header">
+                    <i class="ph ph-heartbeat icon-large accent-color"></i>
+                    <h2>Registro PA Pro</h2>
+                    <p>Monitorea tu salud cardiovascular</p>
+                </div>
+                
+                <div class="auth-tabs">
+                    <button id="tab-login" class="tab-btn active">Iniciar Sesión</button>
+                    <button id="tab-signup" class="tab-btn">Registrarse</button>
+                </div>
+                
+                <form id="login-form" class="auth-form active">
+                    <div class="input-group">
+                        <label for="login-username">Usuario</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-user"></i>
+                            <input type="text" id="login-username" required placeholder="Ingresa tu usuario">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="login-password">Contraseña</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-lock"></i>
+                            <input type="password" id="login-password" required placeholder="Ingresa tu contraseña">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+                    <div id="login-error" class="error-msg"></div>
+                </form>
+
+                <form id="signup-form" class="auth-form hidden">
+                    <div class="input-group">
+                        <label for="signup-name">Nombre Completo</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-identification-card"></i>
+                            <input type="text" id="signup-name" required placeholder="Juan Pérez">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="signup-email">Correo Electrónico</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-envelope"></i>
+                            <input type="email" id="signup-email" required placeholder="correo@ejemplo.com">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="input-group">
+                            <label for="signup-phone">Teléfono</label>
+                            <div class="input-wrapper">
+                                <i class="ph ph-phone"></i>
+                                <input type="tel" id="signup-phone" required placeholder="1234567890">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label for="signup-dob">Fecha de Nacimiento</label>
+                            <div class="input-wrapper">
+                                <i class="ph ph-calendar"></i>
+                                <input type="date" id="signup-dob" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="signup-username">Usuario</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-user"></i>
+                            <input type="text" id="signup-username" required placeholder="Elige un usuario">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="signup-password">Contraseña</label>
+                        <div class="input-wrapper">
+                            <i class="ph ph-lock"></i>
+                            <input type="password" id="signup-password" required placeholder="Crea una contraseña">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Crear Cuenta</button>
+                    <div id="signup-error" class="error-msg"></div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view hidden">
+            <nav class="navbar glass-panel">
+                <div class="nav-brand">
+                    <i class="ph ph-heartbeat accent-color"></i>
+                    <span>Registro PA</span>
+                </div>
+                <div class="nav-user">
+                    <span id="welcome-msg">Bienvenido, Usuario</span>
+                    <button id="logout-btn" class="btn btn-outline btn-sm">
+                        <i class="ph ph-sign-out"></i> Salir
+                    </button>
+                </div>
+            </nav>
+
+            <main class="dashboard-content">
+                <header class="dashboard-header">
+                    <h1>Panel Principal</h1>
+                    <button id="open-record-modal" class="btn btn-primary">
+                        <i class="ph ph-plus"></i> Registrar Lectura
+                    </button>
+                </header>
+
+                <div class="stats-grid">
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon systolic-icon">
+                            <i class="ph ph-arrow-up"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Promedio Sistólica</h3>
+                            <div class="stat-value" id="avg-systolic">--</div>
+                            <div class="stat-unit">mmHg</div>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon diastolic-icon">
+                            <i class="ph ph-arrow-down"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Promedio Diastólica</h3>
+                            <div class="stat-value" id="avg-diastolic">--</div>
+                            <div class="stat-unit">mmHg</div>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon pulse-icon">
+                            <i class="ph ph-activity"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Promedio Pulso</h3>
+                            <div class="stat-value" id="avg-pulse">--</div>
+                            <div class="stat-unit">bpm</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="main-grid">
+                    <div class="chart-section glass-panel">
+                        <h2>Tendencias de Presión Arterial</h2>
+                        <div class="chart-container">
+                            <canvas id="bpChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="history-section glass-panel">
+                        <h2>Historial Reciente</h2>
+                        <div class="history-list" id="history-list">
+                            <!-- History items injected via JS -->
+                        </div>
+                        <table class="history-table print-only" id="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha y Hora</th>
+                                    <th>Sistólica (mmHg)</th>
+                                    <th>Diastólica (mmHg)</th>
+                                    <th>Pulso (bpm)</th>
+                                    <th>Clasificación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Master Dashboard View -->
+        <div id="master-view" class="view hidden">
+            <nav class="navbar glass-panel">
+                <div class="nav-brand">
+                    <i class="ph ph-heartbeat accent-color"></i>
+                    <span>Admin Registro PA</span>
+                </div>
+                <div class="nav-user">
+                    <span id="master-welcome-msg">Bienvenido, Admin</span>
+                    <button id="master-logout-btn" class="btn btn-outline btn-sm">
+                        <i class="ph ph-sign-out"></i> Salir
+                    </button>
+                </div>
+            </nav>
+
+            <main class="dashboard-content admin-layout">
+                <!-- Sidebar for User List -->
+                <aside class="admin-sidebar glass-panel">
+                    <div id="pending-users-section" class="hidden">
+                        <h2>Usuarios Pendientes</h2>
+                        <div class="user-list" id="admin-pending-list">
+                            <!-- Pending items injected via JS -->
+                        </div>
+                        <hr class="sidebar-divider">
+                    </div>
+
+                    <h2>Usuarios Registrados</h2>
+                    <div class="user-list" id="admin-user-list">
+                        <!-- User items injected via JS -->
+                    </div>
+                </aside>
+
+                <!-- Main Content Area for Selected User -->
+                <div class="admin-main">
+                    <header class="dashboard-header">
+                        <h1 id="selected-user-title">Selecciona un Usuario</h1>
+                        <div id="admin-actions" class="hidden" style="display: flex; gap: 1rem;">
+                            <button id="admin-print-btn" class="btn btn-outline btn-sm">
+                                <i class="ph ph-printer"></i> Imprimir Reporte
+                            </button>
+                            <button id="admin-delete-btn" class="btn btn-primary btn-sm" style="background-color: var(--sys-color);">
+                                <i class="ph ph-trash"></i> Eliminar Usuario
+                            </button>
+                        </div>
+                    </header>
+
+                    <div id="admin-user-data" class="hidden">
+                        <div class="stats-grid">
+                            <div class="stat-card glass-panel">
+                                <div class="stat-icon systolic-icon">
+                                    <i class="ph ph-arrow-up"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <h3>Promedio Sistólica</h3>
+                                    <div class="stat-value" id="admin-avg-sys">--</div>
+                                    <div class="stat-unit">mmHg</div>
+                                </div>
+                            </div>
+                            <div class="stat-card glass-panel">
+                                <div class="stat-icon diastolic-icon">
+                                    <i class="ph ph-arrow-down"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <h3>Promedio Diastólica</h3>
+                                    <div class="stat-value" id="admin-avg-dia">--</div>
+                                    <div class="stat-unit">mmHg</div>
+                                </div>
+                            </div>
+                            <div class="stat-card glass-panel">
+                                <div class="stat-icon pulse-icon">
+                                    <i class="ph ph-activity"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <h3>Promedio Pulso</h3>
+                                    <div class="stat-value" id="admin-avg-pulse">--</div>
+                                    <div class="stat-unit">bpm</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="main-grid">
+                            <div class="chart-section glass-panel">
+                                <h2>Tendencias de Presión Arterial</h2>
+                                <div class="chart-container">
+                                    <canvas id="globalBpChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="history-section glass-panel">
+                                <h2>Historial Reciente</h2>
+                                <div class="history-list" id="global-history-list">
+                                    <!-- History items injected via JS -->
+                                </div>
+                                <table class="history-table print-only" id="global-history-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha y Hora</th>
+                                            <th>Sistólica (mmHg)</th>
+                                            <th>Diastólica (mmHg)</th>
+                                            <th>Pulso (bpm)</th>
+                                            <th>Clasificación</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="global-history-table-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Record Modal -->
+    <div id="record-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2>Nueva Medición</h2>
+                <button id="close-modal" class="btn-icon"><i class="ph ph-x"></i></button>
+            </div>
+            <form id="record-form">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label for="sys-input">Sistólica (SYS)</label>
+                        <input type="number" id="sys-input" required min="50" max="250" placeholder="120">
+                    </div>
+                    <div class="input-group">
+                        <label for="dia-input">Diastólica (DIA)</label>
+                        <input type="number" id="dia-input" required min="30" max="150" placeholder="80">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="pulse-input">Pulso (Lat/Min)</label>
+                    <input type="number" id="pulse-input" required min="30" max="200" placeholder="70">
+                </div>
+                <div class="input-group">
+                    <label for="date-input">Fecha y Hora</label>
+                    <input type="datetime-local" id="date-input" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="cancel-modal" class="btn btn-outline">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Registro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="./js/app.js"></script>
+</body>
+</html>
